@@ -5108,7 +5108,10 @@ namespace IKVM.NativeCode.java
 					}
 					catch (Exception x)
 					{
-						if (typeofTimeZoneInfo.Assembly.GetType("System.TimeZoneNotFoundException").IsInstanceOfType(x))
+						// older Mono versions did not wrap the exception in a TargetInvocationExcception,
+						// so we check both x and x.InnerException
+						if (typeofTimeZoneInfo.Assembly.GetType("System.TimeZoneNotFoundException").IsInstanceOfType(x)
+							|| typeofTimeZoneInfo.Assembly.GetType("System.TimeZoneNotFoundException").IsInstanceOfType(x.InnerException))
 						{
 							// MONOBUG Mono's TimeZoneInfo.Local property throws a TimeZoneNotFoundException on Windows
 							// (https://bugzilla.novell.com/show_bug.cgi?id=622524)
