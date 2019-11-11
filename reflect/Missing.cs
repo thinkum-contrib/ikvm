@@ -27,12 +27,12 @@ using System.Runtime.InteropServices;
 
 namespace IKVM.Reflection
 {
-#if !NETSTANDARD
+#if !CORECLR
 	[Serializable]
 #endif
 	public sealed class MissingAssemblyException : InvalidOperationException
 	{
-#if !NETSTANDARD
+#if !CORECLR
 		[NonSerialized]
 #endif
 		private readonly MissingAssembly assembly;
@@ -43,7 +43,7 @@ namespace IKVM.Reflection
 			this.assembly = assembly;
 		}
 
-#if !NETSTANDARD
+#if !CORECLR
 		private MissingAssemblyException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
 			: base(info, context)
 		{
@@ -56,12 +56,12 @@ namespace IKVM.Reflection
 		}
 	}
 
-#if !NETSTANDARD
+#if !CORECLR
 	[Serializable]
 #endif
 	public sealed class MissingModuleException : InvalidOperationException
 	{
-#if !NETSTANDARD
+#if !CORECLR
 		[NonSerialized]
 #endif
 		private readonly MissingModule module;
@@ -72,7 +72,7 @@ namespace IKVM.Reflection
 			this.module = module;
 		}
 
-#if !NETSTANDARD
+#if !CORECLR
 		private MissingModuleException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
 			: base(info, context)
 		{
@@ -85,12 +85,12 @@ namespace IKVM.Reflection
 		}
 	}
 
-#if !NETSTANDARD
+#if !CORECLR
 	[Serializable]
 #endif
 	public sealed class MissingMemberException : InvalidOperationException
 	{
-#if !NETSTANDARD
+#if !CORECLR
 		[NonSerialized]
 #endif
 		private readonly MemberInfo member;
@@ -101,7 +101,7 @@ namespace IKVM.Reflection
 			this.member = member;
 		}
 
-#if !NETSTANDARD
+#if !CORECLR
 		private MissingMemberException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context)
 			: base(info, context)
 		{
@@ -138,7 +138,6 @@ namespace IKVM.Reflection
 				method.signature.GenericParameterCount);
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use SetSignature(Type, CustomModifiers, Type[], CustomModifiers[]) instead.")]
 		public void SetSignature(Type returnType, Type[] returnTypeRequiredCustomModifiers, Type[] returnTypeOptionalCustomModifiers, Type[] parameterTypes, Type[][] parameterTypeRequiredCustomModifiers, Type[][] parameterTypeOptionalCustomModifiers)
 		{
@@ -149,7 +148,6 @@ namespace IKVM.Reflection
 				method.signature.CallingConvention,
 				method.signature.GenericParameterCount);
 		}
-#endif
 
 		public MethodInfo Finish()
 		{
@@ -401,7 +399,6 @@ namespace IKVM.Reflection
 		private int token;
 		private int flags;
 		private bool cyclicTypeForwarder;
-		private bool cyclicTypeSpec;
 
 		internal MissingType(Module module, Type declaringType, string ns, string name)
 		{
@@ -482,7 +479,7 @@ namespace IKVM.Reflection
 			get { return token; }
 		}
 
-		protected override bool IsValueTypeImpl
+		public override bool IsValueType
 		{
 			get
 			{
@@ -624,12 +621,6 @@ namespace IKVM.Reflection
 			return this;
 		}
 
-		internal override Type SetCyclicTypeSpec()
-		{
-			this.cyclicTypeSpec = true;
-			return this;
-		}
-
 		internal override bool IsBaked
 		{
 			get { throw new MissingMemberException(this); }
@@ -644,11 +635,6 @@ namespace IKVM.Reflection
 		public override bool __IsCyclicTypeForwarder
 		{
 			get { return cyclicTypeForwarder; }
-		}
-
-		public override bool __IsCyclicTypeSpec
-		{
-			get { return cyclicTypeSpec; }
 		}
 	}
 

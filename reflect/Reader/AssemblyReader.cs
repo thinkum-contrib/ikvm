@@ -23,9 +23,7 @@
 */
 using System;
 using System.Collections.Generic;
-#if !NETSTANDARD
 using System.Configuration.Assemblies;
-#endif
 using System.IO;
 using IKVM.Reflection.Metadata;
 
@@ -71,11 +69,11 @@ namespace IKVM.Reflection.Reader
 			}
 			if (rec.Culture != 0)
 			{
-				name.CultureName = manifestModule.GetString(rec.Culture);
+				name.Culture = manifestModule.GetString(rec.Culture);
 			}
 			else
 			{
-				name.CultureName = "";
+				name.Culture = "";
 			}
 			name.HashAlgorithm = (AssemblyHashAlgorithm)rec.HashAlgId;
 			name.CodeBase = this.CodeBase;

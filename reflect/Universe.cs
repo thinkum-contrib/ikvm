@@ -150,9 +150,7 @@ namespace IKVM.Reflection
 		private Dictionary<ScopedTypeName, Type> missingTypes;
 		private bool resolveMissingMembers;
 		private readonly bool enableFunctionPointers;
-#if !NETSTANDARD
 		private readonly bool useNativeFusion;
-#endif
 		private readonly bool returnPseudoCustomAttributes;
 		private readonly bool automaticallyProvideDefaultConstructor;
 		private readonly UniverseOptions options;
@@ -182,10 +180,6 @@ namespace IKVM.Reflection
 		private Type typeof_System_DBNull;
 		private Type typeof_System_Decimal;
 		private Type typeof_System_AttributeUsageAttribute;
-		private Type typeof_System_ContextBoundObject;
-		private Type typeof_System_MarshalByRefObject;
-		private Type typeof_System_Console;
-		private Type typeof_System_IO_TextWriter;
 		private Type typeof_System_Runtime_InteropServices_DllImportAttribute;
 		private Type typeof_System_Runtime_InteropServices_FieldOffsetAttribute;
 		private Type typeof_System_Runtime_InteropServices_MarshalAsAttribute;
@@ -218,15 +212,12 @@ namespace IKVM.Reflection
 		{
 			this.options = options;
 			enableFunctionPointers = (options & UniverseOptions.EnableFunctionPointers) != 0;
-#if !NETSTANDARD
 			useNativeFusion = (options & UniverseOptions.DisableFusion) == 0 && GetUseNativeFusion();
-#endif
 			returnPseudoCustomAttributes = (options & UniverseOptions.DisablePseudoCustomAttributeRetrieval) == 0;
 			automaticallyProvideDefaultConstructor = (options & UniverseOptions.DontProvideAutomaticDefaultConstructor) == 0;
 			resolveMissingMembers = (options & UniverseOptions.ResolveMissingMembers) != 0;
 		}
 
-#if !NETSTANDARD
 		private static bool GetUseNativeFusion()
 		{
 			try
@@ -240,7 +231,6 @@ namespace IKVM.Reflection
 				return false;
 			}
 		}
-#endif
 
 		internal Assembly Mscorlib
 		{
@@ -403,26 +393,6 @@ namespace IKVM.Reflection
 			get { return typeof_System_AttributeUsageAttribute ?? (typeof_System_AttributeUsageAttribute = ImportMscorlibType("System", "AttributeUsageAttribute")); }
 		}
 
-		internal Type System_ContextBoundObject
-		{
-			get { return typeof_System_ContextBoundObject ?? (typeof_System_ContextBoundObject = ImportMscorlibType("System", "ContextBoundObject")); }
-		}
-
-		internal Type System_MarshalByRefObject
-		{
-			get { return typeof_System_MarshalByRefObject ?? (typeof_System_MarshalByRefObject = ImportMscorlibType("System", "MarshalByRefObject")); }
-		}
-
-		internal Type System_Console
-		{
-			get { return typeof_System_Console ?? (typeof_System_Console = ImportMscorlibType("System", "Console")); }
-		}
-
-		internal Type System_IO_TextWriter
-		{
-			get { return typeof_System_IO_TextWriter ?? (typeof_System_IO_TextWriter = ImportMscorlibType("System.IO", "TextWriter")); }
-		}
-
 		internal Type System_Runtime_InteropServices_DllImportAttribute
 		{
 			get { return typeof_System_Runtime_InteropServices_DllImportAttribute ?? (typeof_System_Runtime_InteropServices_DllImportAttribute = ImportMscorlibType("System.Runtime.InteropServices", "DllImportAttribute")); }
@@ -550,7 +520,7 @@ namespace IKVM.Reflection
 
 		private Type ImportImpl(System.Type type)
 		{
-			if (TypeUtil.GetAssembly(type) == TypeUtil.GetAssembly(typeof(IKVM.Reflection.Type)))
+			if (type.Assembly == typeof(IKVM.Reflection.Type).Assembly)
 			{
 				throw new ArgumentException("Did you really want to import " + type.FullName + "?");
 			}
@@ -582,7 +552,7 @@ namespace IKVM.Reflection
 			}
 			else if (type.IsGenericParameter)
 			{
-				if (TypeUtil.GetDeclaringMethod(type) != null)
+				if (type.DeclaringMethod != null)
 				{
 					throw new NotImplementedException();
 				}
@@ -591,9 +561,9 @@ namespace IKVM.Reflection
 					return Import(type.DeclaringType).GetGenericArguments()[type.GenericParameterPosition];
 				}
 			}
-			else if (TypeUtil.IsGenericType(type) && !TypeUtil.IsGenericTypeDefinition(type))
+			else if (type.IsGenericType && !type.IsGenericTypeDefinition)
 			{
-				System.Type[] args = TypeUtil.GetGenericArguments(type);
+				System.Type[] args = type.GetGenericArguments();
 				Type[] importedArgs = new Type[args.Length];
 				for (int i = 0; i < args.Length; i++)
 				{
@@ -601,7 +571,7 @@ namespace IKVM.Reflection
 				}
 				return Import(type.GetGenericTypeDefinition()).MakeGenericType(importedArgs);
 			}
-			else if (TypeUtil.GetAssembly(type) == TypeUtil.GetAssembly(typeof(object)))
+			else if (type.Assembly == typeof(object).Assembly)
 			{
 				// make sure mscorlib types always end up in our mscorlib
 				return ResolveType(Mscorlib, type.FullName);
@@ -609,23 +579,12 @@ namespace IKVM.Reflection
 			else
 			{
 				// FXBUG we parse the FullName here, because type.Namespace and type.Name are both broken on the CLR
-				return ResolveType(Import(TypeUtil.GetAssembly(type)), type.FullName);
+				return ResolveType(Import(type.Assembly), type.FullName);
 			}
 		}
 
 		private Assembly Import(System.Reflection.Assembly asm)
 		{
-#if NETSTANDARD
-			if (resolvers.Count == 0)
-			{
-				Assembly result = GetLoadedAssembly(asm.FullName);
-				if (result != null)
-				{
-					return result;
-				}
-				return LoadFile(asm.ManifestModule.FullyQualifiedName);
-			}
-#endif
 			return Load(asm.FullName);
 		}
 
@@ -647,7 +606,7 @@ namespace IKVM.Reflection
 			{
 				if (fs != null)
 				{
-					fs.Dispose();
+					fs.Close();
 				}
 			}
 			return module;
@@ -799,27 +758,14 @@ namespace IKVM.Reflection
 			return null;
 		}
 
-		private Assembly DefaultResolver(string refname, bool throwOnError)
+		public Assembly DefaultResolver(string refname, bool throwOnError)
 		{
 			Assembly asm = GetDynamicAssembly(refname);
 			if (asm != null)
 			{
 				return asm;
 			}
-#if NETSTANDARD
-			string dir = Path.GetDirectoryName(TypeUtil.GetAssembly(typeof(object)).ManifestModule.FullyQualifiedName);
-			string filepath = Path.Combine(dir, GetSimpleAssemblyName(refname) + ".dll");
-			if (File.Exists(filepath))
-			{
-				using (RawModule module = OpenRawModule(filepath))
-				{
-					AssemblyComparisonResult result;
-					if (module.IsManifestModule && CompareAssemblyIdentity(refname, false, module.GetAssemblyName().FullName, false, out result))
-					{
-						return LoadAssembly(module);
-					}
-				}
-			}
+#if CORECLR
 			return null;
 #else
 			string fileName;
@@ -974,7 +920,7 @@ namespace IKVM.Reflection
 		// this is equivalent to the Fusion CompareAssemblyIdentity API
 		public bool CompareAssemblyIdentity(string assemblyIdentity1, bool unified1, string assemblyIdentity2, bool unified2, out AssemblyComparisonResult result)
 		{
-#if NETSTANDARD
+#if CORECLR
 			return Fusion.CompareAssemblyIdentityPure(assemblyIdentity1, unified1, assemblyIdentity2, unified2, out result);
 #else
 			return useNativeFusion
@@ -998,7 +944,7 @@ namespace IKVM.Reflection
 			return new AssemblyBuilder(this, name, dir, null);
 		}
 
-#if !NETSTANDARD
+#if !CORECLR
 #if NET_4_0
 		[Obsolete]
 #endif
@@ -1070,13 +1016,11 @@ namespace IKVM.Reflection
 			return asm;
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please set UniverseOptions.ResolveMissingMembers instead.")]
 		public void EnableMissingMemberResolution()
 		{
 			resolveMissingMembers = true;
 		}
-#endif
 
 		internal bool MissingMemberResolution
 		{
@@ -1165,7 +1109,7 @@ namespace IKVM.Reflection
 				}
 				return method;
 			}
-#if NETSTANDARD
+#if CORECLR
 			throw new MissingMethodException(declaringType.ToString() + "." + name);
 #else
 			throw new MissingMethodException(declaringType.ToString(), name);
@@ -1183,7 +1127,7 @@ namespace IKVM.Reflection
 				}
 				return field;
 			}
-#if NETSTANDARD
+#if CORECLR
 			throw new MissingFieldException(declaringType.ToString() + "." + name);
 #else
 			throw new MissingFieldException(declaringType.ToString(), name);
@@ -1203,7 +1147,7 @@ namespace IKVM.Reflection
 				}
 				return property;
 			}
-#if NETSTANDARD
+#if CORECLR
 			throw new System.MissingMemberException(declaringType.ToString() + "." + name);
 #else
 			throw new System.MissingMemberException(declaringType.ToString(), name);

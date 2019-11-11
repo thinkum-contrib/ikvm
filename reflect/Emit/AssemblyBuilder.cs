@@ -23,9 +23,7 @@
 */
 using System;
 using System.Collections.Generic;
-#if !NETSTANDARD
 using System.Configuration.Assemblies;
-#endif
 using System.IO;
 using System.Diagnostics;
 using System.Globalization;
@@ -84,7 +82,7 @@ namespace IKVM.Reflection.Emit
 			internal string Name;
 			internal string FileName;
 			internal ResourceAttributes Attributes;
-#if !NETSTANDARD
+#if !CORECLR
 			internal ResourceWriter Writer;
 #endif
 		}
@@ -94,9 +92,9 @@ namespace IKVM.Reflection.Emit
 		{
 			this.name = name.Name;
 			SetVersionHelper(name.Version);
-			if (!string.IsNullOrEmpty(name.CultureName))
+			if (!string.IsNullOrEmpty(name.Culture))
 			{
-				this.culture = name.CultureName;
+				this.culture = name.Culture;
 			}
 			this.flags = name.RawFlags;
 			this.hashAlgorithm = name.HashAlgorithm;
@@ -128,15 +126,7 @@ namespace IKVM.Reflection.Emit
 			}
 			else
 			{
-#if NETSTANDARD1_3 || NETSTANDARD1_4
-				using (Universe temp = new Universe(UniverseOptions.MetadataOnly))
-				using (RawModule mscorlib = temp.OpenRawModule(TypeUtil.GetAssembly(typeof(object)).ManifestModule.FullyQualifiedName))
-				{
-					this.imageRuntimeVersion = mscorlib.ImageRuntimeVersion;
-				}
-#else
-				this.imageRuntimeVersion = TypeUtil.GetAssembly(typeof(object)).ImageRuntimeVersion;
-#endif
+				this.imageRuntimeVersion = typeof(object).Assembly.ImageRuntimeVersion;
 			}
 			universe.RegisterDynamicAssembly(this);
 		}
@@ -203,13 +193,11 @@ namespace IKVM.Reflection.Emit
 			this.hashAlgorithm = hashAlgorithm;
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Use __AssemblyFlags property instead.")]
 		public void __SetAssemblyFlags(AssemblyNameFlags flags)
 		{
 			this.__AssemblyFlags = flags;
 		}
-#endif
 
 		protected override AssemblyNameFlags GetAssemblyFlags()
 		{
@@ -237,7 +225,7 @@ namespace IKVM.Reflection.Emit
 			AssemblyName n = new AssemblyName();
 			n.Name = name;
 			n.Version = new Version(majorVersion, minorVersion, buildVersion, revisionVersion);
-			n.CultureName = culture ?? "";
+			n.Culture = culture ?? "";
 			n.HashAlgorithm = hashAlgorithm;
 			n.RawFlags = flags;
 			n.SetPublicKey(publicKey != null ? (byte[])publicKey.Clone() : Empty<byte>.Array);
@@ -427,7 +415,7 @@ namespace IKVM.Reflection.Emit
 
 			foreach (ResourceFile resfile in resourceFiles)
 			{
-#if !NETSTANDARD
+#if !CORECLR
 				if (resfile.Writer != null)
 				{
 					resfile.Writer.Generate();
@@ -484,18 +472,23 @@ namespace IKVM.Reflection.Emit
 
 		private int AddFile(ModuleBuilder manifestModule, string fileName, int flags)
 		{
-			string fullPath = fileName;
-			if (dir != null)
+			using (var hash = SHA1.Create())
 			{
-				fullPath = Path.Combine(dir, fileName);
+				string fullPath = fileName;
+				if (dir != null)
+				{
+					fullPath = Path.Combine(dir, fileName);
+				}
+				using (FileStream fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read))
+				{
+					using (CryptoStream cs = new CryptoStream(Stream.Null, hash, CryptoStreamMode.Write))
+					{
+						byte[] buf = new byte[8192];
+						ModuleWriter.HashChunk(fs, cs, buf, (int)fs.Length);
+					}
+				}
+				return manifestModule.__AddModule(flags, Path.GetFileName(fileName), hash.Hash);
 			}
-			byte[] hash;
-			using (SHA1 sha1 = SHA1.Create())
-			using (FileStream fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read))
-			{
-				hash = sha1.ComputeHash(fs);
-			}
-			return manifestModule.__AddModule(flags, Path.GetFileName(fileName), hash);
 		}
 
 		public void AddResourceFile(string name, string fileName)
@@ -512,7 +505,7 @@ namespace IKVM.Reflection.Emit
 			resourceFiles.Add(resfile);
 		}
 
-#if !NETSTANDARD
+#if !CORECLR
 		public IResourceWriter DefineResource(string name, string description, string fileName)
 		{
 			return DefineResource(name, description, fileName, ResourceAttributes.Public);

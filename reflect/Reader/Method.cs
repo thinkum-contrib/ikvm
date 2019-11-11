@@ -139,7 +139,7 @@ namespace IKVM.Reflection.Reader
 		{
 			get
 			{
-				return this.MethodSignature.GetReturnType(this);
+				return this.ReturnParameter.ParameterType;
 			}
 		}
 

@@ -501,7 +501,7 @@ namespace IKVM.Reflection.Emit
 			}
 			else if (val != null)
 			{
-				if (TypeUtil.IsEnum(typeof(T)))
+				if (typeof(T).IsEnum)
 				{
 					Debug.Assert(Enum.GetUnderlyingType(typeof(T)) == val.GetType());
 					return (T)Enum.ToObject(typeof(T), val);
@@ -673,13 +673,7 @@ namespace IKVM.Reflection.Emit
 		{
 			get
 			{
-				Type attributeType = con.DeclaringType;
-				if (attributeType.IsConstructedGenericType)
-				{
-					// a constructed generic type doesn't have a TypeName and we already know it's not a Known CA
-					return KnownCA.Unknown;
-				}
-				TypeName typeName = attributeType.TypeName;
+				TypeName typeName = con.DeclaringType.TypeName;
 				switch (typeName.Namespace)
 				{
 					case "System":

@@ -112,7 +112,9 @@ namespace IKVM.Reflection.Emit
 		private readonly List<int> labels = new List<int>();
 		private readonly List<int> labelStackHeight = new List<int>();
 		private readonly List<LabelFixup> labelFixups = new List<LabelFixup>();
+#if !NO_SYMBOL_WRITER
 		private readonly List<SequencePoint> sequencePoints = new List<SequencePoint>();
+#endif
 		private readonly List<ExceptionBlock> exceptions = new List<ExceptionBlock>();
 		private readonly Stack<ExceptionBlock> exceptionStack = new Stack<ExceptionBlock>();
 		private ushort maxStack;
@@ -200,7 +202,6 @@ namespace IKVM.Reflection.Emit
 			internal readonly Scope parent;
 			internal readonly List<Scope> children = new List<Scope>();
 			internal readonly List<LocalBuilder> locals = new List<LocalBuilder>();
-			internal readonly List<string> namespaces = new List<string>();
 			internal int startOffset;
 			internal int endOffset;
 
@@ -408,9 +409,9 @@ namespace IKVM.Reflection.Emit
 		public void UsingNamespace(string usingNamespace)
 		{
 #if !NO_SYMBOL_WRITER
-			if (scope != null)
+			if (moduleBuilder.symbolWriter != null)
 			{
-				scope.namespaces.Add(usingNamespace);
+				moduleBuilder.symbolWriter.UsingNamespace(usingNamespace);
 			}
 #endif
 		}
@@ -830,13 +831,13 @@ namespace IKVM.Reflection.Emit
 		{
 			Universe u = moduleBuilder.universe;
 			Emit(OpCodes.Ldstr, text);
-			Emit(OpCodes.Call, u.System_Console.GetMethod("WriteLine", new Type[] { u.System_String }));
+			Emit(OpCodes.Call, u.Import(typeof(Console)).GetMethod("WriteLine", new Type[] { u.System_String }));
 		}
 
 		public void EmitWriteLine(FieldInfo field)
 		{
 			Universe u = moduleBuilder.universe;
-			Emit(OpCodes.Call, u.System_Console.GetMethod("get_Out"));
+			Emit(OpCodes.Call, u.Import(typeof(Console)).GetMethod("get_Out"));
 			if (field.IsStatic)
 			{
 				Emit(OpCodes.Ldsfld, field);
@@ -846,15 +847,15 @@ namespace IKVM.Reflection.Emit
 				Emit(OpCodes.Ldarg_0);
 				Emit(OpCodes.Ldfld, field);
 			}
-			Emit(OpCodes.Callvirt, u.System_IO_TextWriter.GetMethod("WriteLine", new Type[] { field.FieldType }));
+			Emit(OpCodes.Callvirt, u.Import(typeof(System.IO.TextWriter)).GetMethod("WriteLine", new Type[] { field.FieldType }));
 		}
 
 		public void EmitWriteLine(LocalBuilder local)
 		{
 			Universe u = moduleBuilder.universe;
-			Emit(OpCodes.Call, u.System_Console.GetMethod("get_Out"));
+			Emit(OpCodes.Call, u.Import(typeof(Console)).GetMethod("get_Out"));
 			Emit(OpCodes.Ldloc, local);
-			Emit(OpCodes.Callvirt, u.System_IO_TextWriter.GetMethod("WriteLine", new Type[] { local.LocalType }));
+			Emit(OpCodes.Callvirt, u.Import(typeof(System.IO.TextWriter)).GetMethod("WriteLine", new Type[] { local.LocalType }));
 		}
 
 		public void EndScope()
@@ -1139,10 +1140,6 @@ namespace IKVM.Reflection.Emit
 					}
 					moduleBuilder.symbolWriter.DefineLocalVariable2(local.name, 0, localVarSigTok, SymAddressKind.ILOffset, local.LocalIndex, 0, 0, startOffset, endOffset);
 				}
-			}
-			foreach (string ns in scope.namespaces)
-			{
-				moduleBuilder.symbolWriter.UsingNamespace(ns);
 			}
 			foreach (Scope child in scope.children)
 			{

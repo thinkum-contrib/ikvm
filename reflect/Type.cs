@@ -58,7 +58,7 @@ namespace IKVM.Reflection
 			HasNestedTypes = 2,
 			Baked = 4,
 
-			// for use by IsValueType to cache result of IsValueTypeImpl
+			// for use by MissingType
 			ValueType = 8,
 			NotValueType = 16,
 
@@ -175,7 +175,6 @@ namespace IKVM.Reflection
 			return new CustomModifiers();
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use __GetCustomModifiers() instead.")]
 		public Type[] __GetRequiredCustomModifiers()
 		{
@@ -187,7 +186,6 @@ namespace IKVM.Reflection
 		{
 			return __GetCustomModifiers().GetOptional();
 		}
-#endif
 
 		public virtual __StandAloneMethodSig __MethodSignature
 		{
@@ -224,24 +222,15 @@ namespace IKVM.Reflection
 			get { return sigElementType == Signature.ELEMENT_TYPE_FNPTR; }
 		}
 
-		public bool IsValueType
+		public virtual bool IsValueType
 		{
 			get
 			{
-				// MissingType sets both flags for WinRT projection types
-				switch (typeFlags & (TypeFlags.ValueType | TypeFlags.NotValueType))
-				{
-					case 0:
-					case TypeFlags.ValueType | TypeFlags.NotValueType:
-						return IsValueTypeImpl;
-				}
-				return (typeFlags & TypeFlags.ValueType) != 0;
+				Type baseType = this.BaseType;
+				return baseType != null
+					&& baseType.IsEnumOrValueType
+					&& !this.IsEnumOrValueType;
 			}
-		}
-
-		protected abstract bool IsValueTypeImpl
-		{
-			get;
 		}
 
 		public bool IsGenericParameter
@@ -351,7 +340,6 @@ namespace IKVM.Reflection
 			return Empty<CustomModifiers>.Array;
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use __GetGenericArgumentsCustomModifiers() instead")]
 		public Type[][] __GetGenericArgumentsRequiredCustomModifiers()
 		{
@@ -375,7 +363,6 @@ namespace IKVM.Reflection
 			}
 			return array;
 		}
-#endif
 
 		public virtual Type GetGenericTypeDefinition()
 		{
@@ -410,18 +397,10 @@ namespace IKVM.Reflection
 						layout.CharSet = CharSet.Unicode;
 						break;
 					case TypeAttributes.AutoClass:
-#if NETSTANDARD
-						layout.CharSet = (CharSet)4;
-#else
 						layout.CharSet = CharSet.Auto;
-#endif
 						break;
 					default:
-#if NETSTANDARD
-						layout.CharSet = (CharSet)1;
-#else
 						layout.CharSet = CharSet.None;
-#endif
 						break;
 				}
 				if (!__GetLayout(out layout.Pack, out layout.Size))
@@ -546,6 +525,7 @@ namespace IKVM.Reflection
 			return names.ToArray();
 		}
 
+#if !CORECLR
 		public string GetEnumName(object value)
 		{
 			if (!IsEnum)
@@ -558,7 +538,7 @@ namespace IKVM.Reflection
 			}
 			try
 			{
-				value = Convert.ChangeType(value, __GetSystemType(GetTypeCode(GetEnumUnderlyingType())));
+				value = Convert.ChangeType(value, GetTypeCode(GetEnumUnderlyingType()));
 			}
 			catch (FormatException)
 			{
@@ -581,6 +561,7 @@ namespace IKVM.Reflection
 			}
 			return null;
 		}
+#endif
 
 		public bool IsEnumDefined(object value)
 		{
@@ -596,7 +577,7 @@ namespace IKVM.Reflection
 			{
 				throw new ArgumentNullException();
 			}
-			if (value.GetType() != __GetSystemType(GetTypeCode(GetEnumUnderlyingType())))
+			if (System.Type.GetTypeCode(value.GetType()) != GetTypeCode(GetEnumUnderlyingType()))
 			{
 				throw new ArgumentException();
 			}
@@ -1423,15 +1404,17 @@ namespace IKVM.Reflection
 			get { return IsClass && IsImport; }
 		}
 
+#if !CORECLR
 		public bool IsContextful
 		{
-			get { return IsSubclassOf(this.Module.universe.System_ContextBoundObject); }
+			get { return IsSubclassOf(this.Module.universe.Import(typeof(ContextBoundObject))); }
 		}
 
 		public bool IsMarshalByRef
 		{
-			get { return IsSubclassOf(this.Module.universe.System_MarshalByRefObject); }
+			get { return IsSubclassOf(this.Module.universe.Import(typeof(MarshalByRefObject))); }
 		}
+#endif
 
 		public virtual bool IsVisible
 		{
@@ -1546,13 +1529,11 @@ namespace IKVM.Reflection
 			return ArrayType.Make(this, customModifiers);
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use __MakeArrayType(CustomModifiers) instead.")]
 		public Type __MakeArrayType(Type[] requiredCustomModifiers, Type[] optionalCustomModifiers)
 		{
 			return __MakeArrayType(CustomModifiers.FromReqOpt(requiredCustomModifiers, optionalCustomModifiers));
 		}
-#endif
 
 		public Type MakeArrayType(int rank)
 		{
@@ -1564,26 +1545,22 @@ namespace IKVM.Reflection
 			return MultiArrayType.Make(this, rank, Empty<int>.Array, new int[rank], customModifiers);
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use __MakeArrayType(int, CustomModifiers) instead.")]
 		public Type __MakeArrayType(int rank, Type[] requiredCustomModifiers, Type[] optionalCustomModifiers)
 		{
 			return __MakeArrayType(rank, CustomModifiers.FromReqOpt(requiredCustomModifiers, optionalCustomModifiers));
 		}
-#endif
 
 		public Type __MakeArrayType(int rank, int[] sizes, int[] lobounds, CustomModifiers customModifiers)
 		{
 			return MultiArrayType.Make(this, rank, sizes ?? Empty<int>.Array, lobounds ?? Empty<int>.Array, customModifiers);
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use __MakeArrayType(int, int[], int[], CustomModifiers) instead.")]
 		public Type __MakeArrayType(int rank, int[] sizes, int[] lobounds, Type[] requiredCustomModifiers, Type[] optionalCustomModifiers)
 		{
 			return __MakeArrayType(rank, sizes, lobounds, CustomModifiers.FromReqOpt(requiredCustomModifiers, optionalCustomModifiers));
 		}
-#endif
 
 		public Type MakeByRefType()
 		{
@@ -1595,13 +1572,11 @@ namespace IKVM.Reflection
 			return ByRefType.Make(this, customModifiers);
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use __MakeByRefType(CustomModifiers) instead.")]
 		public Type __MakeByRefType(Type[] requiredCustomModifiers, Type[] optionalCustomModifiers)
 		{
 			return __MakeByRefType(CustomModifiers.FromReqOpt(requiredCustomModifiers, optionalCustomModifiers));
 		}
-#endif
 
 		public Type MakePointerType()
 		{
@@ -1613,13 +1588,11 @@ namespace IKVM.Reflection
 			return PointerType.Make(this, customModifiers);
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use __MakeByRefType(CustomModifiers) instead.")]
 		public Type __MakePointerType(Type[] requiredCustomModifiers, Type[] optionalCustomModifiers)
 		{
 			return __MakePointerType(CustomModifiers.FromReqOpt(requiredCustomModifiers, optionalCustomModifiers));
 		}
-#endif
 
 		public Type MakeGenericType(params Type[] typeArguments)
 		{
@@ -1635,7 +1608,6 @@ namespace IKVM.Reflection
 			return GenericTypeInstance.Make(this, Util.Copy(typeArguments), customModifiers == null ? null : (CustomModifiers[])customModifiers.Clone());
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use __MakeGenericType(Type[], CustomModifiers[]) instead.")]
 		public Type __MakeGenericType(Type[] typeArguments, Type[][] requiredCustomModifiers, Type[][] optionalCustomModifiers)
 		{
@@ -1654,7 +1626,6 @@ namespace IKVM.Reflection
 			}
 			return GenericTypeInstance.Make(this, Util.Copy(typeArguments), mods);
 		}
-#endif
 
 		public static System.Type __GetSystemType(TypeCode typeCode)
 		{
@@ -1666,13 +1637,8 @@ namespace IKVM.Reflection
 					return typeof(System.Byte);
 				case TypeCode.Char:
 					return typeof(System.Char);
-#if NETSTANDARD
-				case (TypeCode)2:
-					return System.Type.GetType("System.DBNull", true);
-#else
 				case TypeCode.DBNull:
 					return typeof(System.DBNull);
-#endif
 				case TypeCode.DateTime:
 					return typeof(System.DateTime);
 				case TypeCode.Decimal:
@@ -1771,11 +1737,7 @@ namespace IKVM.Reflection
 			}
 			else if (type == u.System_DBNull)
 			{
-#if NETSTANDARD
-				return (TypeCode)2;
-#else
 				return TypeCode.DBNull;
-#endif
 			}
 			else if (type == u.System_Decimal)
 			{
@@ -2160,26 +2122,22 @@ namespace IKVM.Reflection
 			return method;
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use __CreateMissingMethod(string, CallingConventions, Type, CustomModifiers, Type[], CustomModifiers[]) instead")]
 		public MethodBase __CreateMissingMethod(string name, CallingConventions callingConvention, Type returnType, Type[] returnTypeRequiredCustomModifiers, Type[] returnTypeOptionalCustomModifiers, Type[] parameterTypes, Type[][] parameterTypeRequiredCustomModifiers, Type[][] parameterTypeOptionalCustomModifiers)
 		{
 			return CreateMissingMethod(name, callingConvention, returnType, parameterTypes, PackedCustomModifiers.CreateFromExternal(returnTypeOptionalCustomModifiers, returnTypeRequiredCustomModifiers, parameterTypeOptionalCustomModifiers, parameterTypeRequiredCustomModifiers, parameterTypes.Length));
 		}
-#endif
 
 		public FieldInfo __CreateMissingField(string name, Type fieldType, CustomModifiers customModifiers)
 		{
 			return new MissingField(this, name, FieldSignature.Create(fieldType, customModifiers));
 		}
 
-#if !NETSTANDARD
 		[Obsolete("Please use __CreateMissingField(string, Type, CustomModifiers) instead")]
 		public FieldInfo __CreateMissingField(string name, Type fieldType, Type[] requiredCustomModifiers, Type[] optionalCustomModifiers)
 		{
 			return __CreateMissingField(name, fieldType, CustomModifiers.FromReqOpt(requiredCustomModifiers, optionalCustomModifiers));
 		}
-#endif
 
 		public PropertyInfo __CreateMissingProperty(string name, CallingConventions callingConvention, Type propertyType, CustomModifiers propertyTypeCustomModifiers, Type[] parameterTypes, CustomModifiers[] parameterTypeCustomModifiers)
 		{
@@ -2196,11 +2154,6 @@ namespace IKVM.Reflection
 		}
 
 		internal virtual Type SetCyclicTypeForwarder()
-		{
-			return this;
-		}
-
-		internal virtual Type SetCyclicTypeSpec()
 		{
 			return this;
 		}
@@ -2258,7 +2211,7 @@ namespace IKVM.Reflection
 			}
 		}
 
-		internal bool IsEnumOrValueType
+		private bool IsEnumOrValueType
 		{
 			get
 			{
@@ -2310,11 +2263,6 @@ namespace IKVM.Reflection
 		}
 
 		public virtual bool __IsCyclicTypeForwarder
-		{
-			get { return false; }
-		}
-
-		public virtual bool __IsCyclicTypeSpec
 		{
 			get { return false; }
 		}
@@ -2409,11 +2357,6 @@ namespace IKVM.Reflection
 				return type.__ContainsMissingType
 					|| mods.ContainsMissingType;
 			}
-		}
-
-		protected sealed override bool IsValueTypeImpl
-		{
-			get { return false; }
 		}
 
 		internal sealed override Type BindTypeParameters(IGenericBinder binder)
@@ -2931,7 +2874,7 @@ namespace IKVM.Reflection
 			}
 		}
 
-		protected override bool IsValueTypeImpl
+		public override bool IsValueType
 		{
 			get { return type.IsValueType; }
 		}
@@ -3269,11 +3212,6 @@ namespace IKVM.Reflection
 		{
 			get { return true; }
 		}
-
-		protected override bool IsValueTypeImpl
-		{
-			get { return false; }
-		}
 	}
 
 	sealed class MarkerType : Type
@@ -3284,8 +3222,6 @@ namespace IKVM.Reflection
 		// used by SignatureHelper
 		internal static readonly Type Sentinel = new MarkerType(Signature.SENTINEL);
 		internal static readonly Type Pinned = new MarkerType(Signature.ELEMENT_TYPE_PINNED);
-		// used by ModuleReader.LazyForwardedType and TypeSpec resolution
-		internal static readonly Type LazyResolveInProgress = new MarkerType(0xFF);
 
 		private MarkerType(byte sigElementType)
 			: base(sigElementType)
@@ -3325,11 +3261,6 @@ namespace IKVM.Reflection
 		public override bool __IsMissing
 		{
 			get { return false; }
-		}
-
-		protected override bool IsValueTypeImpl
-		{
-			get { throw new InvalidOperationException(); }
 		}
 	}
 }
